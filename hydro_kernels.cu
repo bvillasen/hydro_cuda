@@ -74,7 +74,11 @@ extern "C"   // ensure function name to be exactly "vadd"
         t_j, t_i, t_k, tid );
   }
 
-
+  __device__ double hll_interFlux( double val_l, double val_r, double F_l, double F_r, double s_l, double s_r ){
+    if ( s_l > 0 ) return F_l;
+    if ( s_r < 0 ) return F_r;
+    return ( s_r*F_l - s_l*F_r + s_l*s_r*( val_r - val_l ) ) / ( s_r - s_l );
+  }
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   __global__ void setInterFlux_hll( const int coord, const double gamma, const double dx, const double dy, const double dz,
@@ -194,7 +198,7 @@ extern "C"   // ensure function name to be exactly "vadd"
     }
 
     // Adjacent fluxes from left and center cell
-    double F_l, F_c, iFlx;
+    double F_l, F_c;
 
     //iFlx rho
     if ( coord == 1 ){
@@ -209,10 +213,7 @@ extern "C"   // ensure function name to be exactly "vadd"
       F_l = rho_l * vz_l;
       F_c = rho_c * vz_c;
     }
-    if ( s_l > 0 ) iFlx = F_l;
-    else if ( s_c < 0 ) iFlx = F_c;
-    else  iFlx = ( s_c*F_l - s_l*F_c + s_l*s_c*( rho_c - rho_l ) ) / ( s_c - s_l );
-    iFlx_1[tid] = iFlx;
+    iFlx_1[tid] = hll_interFlux( rho_l, rho_c, F_l, F_c, s_l, s_c );
 
     //iFlx rho * vx
     if ( coord == 1 ){
@@ -227,10 +228,7 @@ extern "C"   // ensure function name to be exactly "vadd"
       F_l = rho_l * vx_l * vz_l;
       F_c = rho_c * vx_c * vz_c;
     }
-    if ( s_l > 0 ) iFlx = F_l;
-    else if ( s_c < 0 ) iFlx = F_c;
-    else  iFlx = ( s_c*F_l - s_l*F_c + s_l*s_c*( rho_c*vx_c - rho_l*vx_l ) ) / ( s_c - s_l );
-    iFlx_2[tid] = iFlx;
+    iFlx_2[tid] = hll_interFlux( rho_l*vx_l, rho_c*vx_c, F_l, F_c, s_l, s_c );
 
     //iFlx rho * vy
     if ( coord == 1 ){
@@ -245,10 +243,7 @@ extern "C"   // ensure function name to be exactly "vadd"
       F_l = rho_l * vy_l * vz_l;
       F_c = rho_c * vy_c * vz_c;
     }
-    if ( s_l > 0 ) iFlx = F_l;
-    else if ( s_c < 0 ) iFlx = F_c;
-    else  iFlx = ( s_c*F_l - s_l*F_c + s_l*s_c*( rho_c*vy_c - rho_l*vy_l ) ) / ( s_c - s_l );
-    iFlx_3[tid] = iFlx;
+    iFlx_3[tid] = hll_interFlux( rho_l*vy_l, rho_c*vy_c, F_l, F_c, s_l, s_c );
 
     //iFlx rho * vz
     if ( coord == 1 ){
@@ -263,10 +258,7 @@ extern "C"   // ensure function name to be exactly "vadd"
       F_l = rho_l * vz_l * vz_l + p_l ;
       F_c = rho_c * vz_c * vz_c + p_c ;
     }
-    if ( s_l > 0 ) iFlx = F_l;
-    else if ( s_c < 0 ) iFlx = F_c;
-    else  iFlx = ( s_c*F_l - s_l*F_c + s_l*s_c*( rho_c*vz_c - rho_l*vz_l ) ) / ( s_c - s_l );
-    iFlx_4[tid] = iFlx;
+    iFlx_4[tid] = hll_interFlux( rho_l*vz_l, rho_c*vz_c, F_l, F_c, s_l, s_c );
 
     //iFlx E
     if ( coord == 1 ){
@@ -281,10 +273,10 @@ extern "C"   // ensure function name to be exactly "vadd"
       F_l = vz_l * ( E_l + p_l ) ;
       F_c = vz_c * ( E_c + p_c ) ;
     }
-    if ( s_l > 0 ) iFlx = F_l;
-    else if ( s_c < 0 ) iFlx = F_c;
-    else  iFlx = ( s_c*F_l - s_l*F_c + s_l*s_c*( E_c - E_l ) ) / ( s_c - s_l );
-    iFlx_5[tid] = iFlx;
+    iFlx_5[tid] = hll_interFlux( E_l, E_c, F_l, F_c, s_l, s_c );
+
+    //Get iFlux_r for most right cell
+    if ( blockIdx.x!=(gridDim.x-1) || blockIdx.y!=(gridDim.y-1) || blockIdx.z!=(gridDim.z-1) ) return
   }
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
