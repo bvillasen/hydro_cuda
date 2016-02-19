@@ -1,86 +1,94 @@
-#define  B_W 10
-#define  B_H 10
-#define  B_D 10
+#define N_W 128
+#define N_H 128
+#define N_D 128
 
 extern "C"   // ensure function name to be exactly "vadd"
 {
+  __device__ double getBound( const int boundAxis, double *bound,
+                const int t_j, const int t_i, const int t_k ){
+    int boundId;
+    if ( boundAxis == 1 ) boundId = t_i + t_k*N_H;  //X BOUNDERIES
+    if ( boundAxis == 2 ) boundId = t_j + t_k*N_W;   //Y BOUNDERIES
+    if ( boundAxis == 3 ) boundId = t_j + t_i*N_W;   //Z BOUNDERIES
+    return bound[ boundId ];
+  }
 
-  // __global__ void setBounderies( 
-  //        double* cnsv_1, double* cnsv_2, double* cnsv_3, double* cnsv_4, double* cnsv_5,
-  //        double* iFlx_1, double* iFlx_2, double* iFlx_3, double* iFlx_4, double* iFlx_5,
-  //        double* times ){
-  //   int t_j = blockIdx.x*blockDim.x + threadIdx.x;
-  //   int t_i = blockIdx.y*blockDim.y + threadIdx.y;
-  //   int t_k = blockIdx.z*blockDim.z + threadIdx.z;
-  //   int tid = t_j + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
-  //
+  __device__ void writeBound(  const int boundAxis,
+                  double *cnsv_1, double *cnsv_2, double *cnsv_3, double *cnsv_4, double *cnsv_5,
+                  double *bound_1, double *bound_2, double *bound_3, double *bound_4, double *bound_5,
+                  const int t_j, const int t_i, const int t_k, const int tid ){
+    int boundId;
+    if ( boundAxis == 1 ) boundId = t_i + t_k*N_H;  //X BOUNDERIES
+    if ( boundAxis == 2 ) boundId = t_j + t_k*N_W;   //Y BOUNDERIES
+    if ( boundAxis == 3 ) boundId = t_j + t_i*N_W;   //Z BOUNDERIES
+    bound_1[boundId] = cnsv_1[tid];
+    bound_2[boundId] = cnsv_2[tid];
+    bound_3[boundId] = cnsv_3[tid];
+    bound_4[boundId] = cnsv_4[tid];
+    bound_5[boundId] = cnsv_5[tid];
+  }
 
-
-
-
-  __device__ void load_bounderies( const int nWidth, const int nHeight, const int nDepth,
-    const int t_j, const int t_i, const int t_k, const int tid, double *out_l, double *out_r,
-    double *out_d, double *out_u, double *out_b, double *out_t){
-      int t_j = blockIdx.x*blockDim.x + threadIdx.x;
-      int t_i = blockIdx.y*blockDim.y + threadIdx.y;
-      int t_k = blockIdx.z*blockDim.z + threadIdx.z;
-      int tid = t_j + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
-
-      int boundId;
-      //X BOUNDERIES
-      boundId = t_i + t_k*nHeight;
-      if ( t_j==0 )        out_l[ boundId ] = tid;
-      if ( t_j==nWidth-1 ) out_r[ boundId ] = tid;
-
-      //Y BOUNDERIES
-      boundId = t_j + t_k*nWidth;
-      if  ( t_i==0 )         out_d[ boundId ] = tid;
-      if  ( t_i==nHeight-1 ) out_u[ boundId ] = tid;
-
-      //Z BOUNDERIES
-      boundId = t_j + t_i*nWidth;
-      if ( t_k==0 )         out_b[ boundId ] = tid;
-      if ( t_k==nDepth-1 )  out_t[ boundId ] = tid;
-
-    }
-
-__device__ void write_bounderies( const int nWidth, const int nHeight, const int nDepth,
-  const int t_j, const int t_i, const int t_k, const int tid, double *out_l, double *out_r,
-  double *out_d, double *out_u, double *out_b, double *out_t){
+  __global__ void setBounderies(
+         double* cnsv_1, double* cnsv_2, double* cnsv_3, double* cnsv_4, double* cnsv_5,
+         double* bound_1_l, double* bound_1_r, double* bound_1_d, double* bound_1_u, double* bound_1_b, double *bound_1_t,
+         double* bound_2_l, double* bound_2_r, double* bound_2_d, double* bound_2_u, double* bound_2_b, double *bound_2_t,
+         double* bound_3_l, double* bound_3_r, double* bound_3_d, double* bound_3_u, double* bound_3_b, double *bound_3_t,
+         double* bound_4_l, double* bound_4_r, double* bound_4_d, double* bound_4_u, double* bound_4_b, double *bound_4_t,
+         double* bound_5_l, double* bound_5_r, double* bound_5_d, double* bound_5_u, double* bound_5_b, double *bound_5_t ){
     int t_j = blockIdx.x*blockDim.x + threadIdx.x;
     int t_i = blockIdx.y*blockDim.y + threadIdx.y;
     int t_k = blockIdx.z*blockDim.z + threadIdx.z;
     int tid = t_j + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
 
-    int boundId;
-    //X BOUNDERIES
-    boundId = t_i + t_k*nHeight;
-    if ( t_j==0 )        out_l[ boundId ] = tid;
-    if ( t_j==nWidth-1 ) out_r[ boundId ] = tid;
+    bool boundBlock = false;
+    if ( blockIdx.x==0 || blockIdx.y==0 || blockIdx.z==0 ) boundBlock = true;
+    if ( blockIdx.x==(gridDim.x-1) || blockIdx.y==(gridDim.y-1) || blockIdx.z==(gridDim.z-1) ) boundBlock = true;
 
-    //Y BOUNDERIES
-    boundId = t_j + t_k*nWidth;
-    if  ( t_i==0 )         out_d[ boundId ] = tid;
-    if  ( t_i==nHeight-1 ) out_u[ boundId ] = tid;
+    if ( !boundBlock ) return;
 
-    //Z BOUNDERIES
-    boundId = t_j + t_i*nWidth;
-    if ( t_k==0 )         out_b[ boundId ] = tid;
-    if ( t_k==nDepth-1 )  out_t[ boundId ] = tid;
+    if ( t_j==0 )
+      writeBound( 1, cnsv_1, cnsv_2, cnsv_3, cnsv_4, cnsv_5,
+        bound_1_l, bound_2_l, bound_3_l, bound_4_l, bound_5_l,
+        t_j, t_i, t_k, tid );
+    if ( t_j==(N_W-1) )
+      writeBound( 1, cnsv_1, cnsv_2, cnsv_3, cnsv_4, cnsv_5,
+        bound_1_r, bound_2_r, bound_3_r, bound_4_r, bound_5_r,
+        t_j, t_i, t_k, tid );
 
+    if ( t_i==0 )
+      writeBound( 2, cnsv_1, cnsv_2, cnsv_3, cnsv_4, cnsv_5,
+        bound_1_d, bound_2_d, bound_3_d, bound_4_d, bound_5_d,
+        t_j, t_i, t_k, tid );
+    if ( t_i==(N_H-1) )
+      writeBound( 2, cnsv_1, cnsv_2, cnsv_3, cnsv_4, cnsv_5,
+        bound_1_u, bound_2_u, bound_3_u, bound_4_u, bound_5_u,
+        t_j, t_i, t_k, tid );
+
+    if ( t_k==0 )
+      writeBound( 3, cnsv_1, cnsv_2, cnsv_3, cnsv_4, cnsv_5,
+        bound_1_b, bound_2_b, bound_3_b, bound_4_b, bound_5_b,
+        t_j, t_i, t_k, tid );
+    if ( t_k==(N_D-1) )
+      writeBound( 3, cnsv_1, cnsv_2, cnsv_3, cnsv_4, cnsv_5,
+        bound_1_t, bound_2_t, bound_3_t, bound_4_t, bound_5_t,
+        t_j, t_i, t_k, tid );
   }
+
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   __global__ void setInterFlux_hll( const int coord, const double gamma, const double dx, const double dy, const double dz,
   			 double* cnsv_1, double* cnsv_2, double* cnsv_3, double* cnsv_4, double* cnsv_5,
          double* iFlx_1, double* iFlx_2, double* iFlx_3, double* iFlx_4, double* iFlx_5,
-  			 double* times ){
+         double* bound_1_l, double* bound_2_l, double* bound_3_l, double* bound_4_l, double* bound_5_l,
+         double* bound_1_r, double* bound_2_r, double* bound_3_r, double* bound_4_r, double* bound_5_r,
+         double* times ){
     int t_j = blockIdx.x*blockDim.x + threadIdx.x;
     int t_i = blockIdx.y*blockDim.y + threadIdx.y;
     int t_k = blockIdx.z*blockDim.z + threadIdx.z;
     int tid = t_j + t_i*blockDim.x*gridDim.x + t_k*blockDim.x*gridDim.x*blockDim.y*gridDim.y;
 
-    int tid_adj;
+    int tid_adj, boundId;
     double v2;
     double rho_l, vx_l, vy_l, vz_l, E_l, p_l;
     double rho_c, vx_c, vy_c, vz_c, E_c, p_c;
@@ -113,6 +121,39 @@ __device__ void write_bounderies( const int nWidth, const int nHeight, const int
 
     E_l = cnsv_5[ tid_adj ];
     E_c = cnsv_5[ tid ];
+
+    //Load and apply boundery conditions
+    if ( coord == 1 ){
+      boundId = t_i + t_k*N_H;
+      if ( t_j == 0) {
+        rho_l = bound_1_l[boundId];
+        vx_l  = bound_2_l[boundId] / rho_l;
+        vy_l  = bound_3_l[boundId] / rho_l;
+        vz_l  = bound_4_l[boundId] / rho_l;
+        E_l   = bound_5_l[boundId];
+      }
+    }
+    if ( coord == 2 ){
+      boundId = t_j + t_k*N_W;
+      if ( t_i == 0) {
+        rho_l = bound_1_l[boundId];
+        vx_l  = bound_2_l[boundId] / rho_l;
+        vy_l  = bound_3_l[boundId] / rho_l;
+        vz_l  = bound_4_l[boundId] / rho_l;
+        E_l   = bound_5_l[boundId];
+      }
+    }
+    if ( coord == 3 ){
+      boundId = t_j + t_i*N_W;
+      if ( t_k == 0) {
+        rho_l = bound_1_l[boundId];
+        vx_l  = bound_2_l[boundId] / rho_l;
+        vy_l  = bound_3_l[boundId] / rho_l;
+        vz_l  = bound_4_l[boundId] / rho_l;
+        E_l   = bound_5_l[boundId];
+      }
+    }
+
 
   //   //Boundary bounce condition
   //     if ( t_j == 0 ) vx_l = -vx_c;

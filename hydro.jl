@@ -83,15 +83,29 @@ setInterFlux_hll = CuFunction( cudaModule, "setInterFlux_hll")
 getInterFlux_hll = CuFunction( cudaModule, "getInterFlux_hll")
 copyDtoD = CuFunction( cudaModule, "copyDtoD")
 addDtoD  = CuFunction( cudaModule, "addDtoD")
-write_bounderies = CuFunction( cudaModule, "write_bounderies" )
+setBounderies = CuFunction( cudaModule, "setBounderies" )
 ########################################################################
 const dt = 0.000995 /10
 function timeStepHydro()
   for coord in [ 1, 2, 3]
+    if coord == 1
+      bound_1_l_temp, bound_2_l_temp, bound_3_l_temp, bound_4_l_temp, bound_5_l_temp = bound_1_l_d, bound_2_l_d, bound_3_l_d, bound_4_l_d, bound_5_l_d
+      bound_1_r_temp, bound_2_r_temp, bound_3_r_temp, bound_4_r_temp, bound_5_r_temp = bound_1_r_d, bound_2_r_d, bound_3_r_d, bound_4_r_d, bound_5_r_d
+    end
+    if coord == 2
+      bound_1_l_temp, bound_2_l_temp, bound_3_l_temp, bound_4_l_temp, bound_5_l_temp = bound_1_d_d, bound_2_d_d, bound_3_d_d, bound_4_d_d, bound_5_d_d
+      bound_1_r_temp, bound_2_r_temp, bound_3_r_temp, bound_4_r_temp, bound_5_r_temp = bound_1_u_d, bound_2_u_d, bound_3_u_d, bound_4_u_d, bound_5_u_d
+    end
+    if coord == 3
+      bound_1_l_temp, bound_2_l_temp, bound_3_l_temp, bound_4_l_temp, bound_5_l_temp = bound_1_b_d, bound_2_b_d, bound_3_b_d, bound_4_b_d, bound_5_b_d
+      bound_1_r_temp, bound_2_r_temp, bound_3_r_temp, bound_4_r_temp, bound_5_r_temp = bound_1_t_d, bound_2_t_d, bound_3_t_d, bound_4_t_d, bound_5_t_d
+    end
     CUDA.launch( setInterFlux_hll, grid3D, block3D,
     ( Int32( coord ),  gamma , dx, dy, dz,
       cnsv1_d, cnsv2_d, cnsv3_d, cnsv4_d, cnsv5_d,
       iFlx1_d, iFlx2_d, iFlx3_d, iFlx4_d, iFlx5_d,
+      bound_1_l_temp, bound_2_l_temp, bound_3_l_temp, bound_4_l_temp, bound_5_l_temp,
+      bound_1_r_temp, bound_2_r_temp, bound_3_r_temp, bound_4_r_temp, bound_5_r_temp,
       times_d ) )
     # if coord == 1: dt = c0 * gpuarray.min( times_d ).get()
 
@@ -104,6 +118,14 @@ function timeStepHydro()
   CUDA.launch( addDtoD, grid3D, block3D,
               (cnsv1_d, cnsv2_d, cnsv3_d, cnsv4_d, cnsv5_d,
               cnsv1_adv_d, cnsv2_adv_d, cnsv3_adv_d, cnsv4_adv_d, cnsv5_adv_d) )
+  CUDA.launch( setBounderies, grid3D, block3D,
+              (cnsv1_d, cnsv2_d, cnsv3_d, cnsv4_d, cnsv5_d,
+              bound_1_l_d, bound_1_r_d, bound_1_d_d, bound_1_u_d, bound_1_b_d, bound_1_t_d,
+              bound_2_l_d, bound_2_r_d, bound_2_d_d, bound_2_u_d, bound_2_b_d, bound_2_t_d,
+              bound_3_l_d, bound_3_r_d, bound_3_d_d, bound_3_u_d, bound_3_b_d, bound_3_t_d,
+              bound_4_l_d, bound_4_r_d, bound_4_d_d, bound_4_u_d, bound_4_b_d, bound_4_t_d,
+              bound_5_l_d, bound_5_r_d, bound_5_d_d, bound_5_u_d, bound_5_b_d, bound_5_t_d  ) )
+
 end
 ########################################################################
 function dynamics( nIter, data_d, data_h; transferEnd=false )
@@ -161,42 +183,48 @@ iFlx2_d = CuArray( zeros( Float64, (nWidth, nHeight,nDepth) ) )
 iFlx3_d = CuArray( zeros( Float64, (nWidth, nHeight,nDepth) ) )
 iFlx4_d = CuArray( zeros( Float64, (nWidth, nHeight,nDepth) ) )
 iFlx5_d = CuArray( zeros( Float64, (nWidth, nHeight,nDepth) ) )
-bound_l_d = CuArray( bound_l_h )
-bound_r_d = CuArray( bound_r_h )
-bound_d_d = CuArray( bound_d_h )
-bound_u_d = CuArray( bound_u_h )
-bound_b_d = CuArray( bound_b_h )
-bound_t_d = CuArray( bound_t_h )
+bound_1_l_d, bound_1_r_d = CuArray( bound_l_h ), CuArray( bound_r_h )
+bound_1_d_d, bound_1_u_d = CuArray( bound_d_h ), CuArray( bound_u_h )
+bound_1_b_d, bound_1_t_d = CuArray( bound_b_h ), CuArray( bound_t_h )
+bound_2_l_d, bound_2_r_d = CuArray( bound_l_h ), CuArray( bound_r_h )
+bound_2_d_d, bound_2_u_d = CuArray( bound_d_h ), CuArray( bound_u_h )
+bound_2_b_d, bound_2_t_d = CuArray( bound_b_h ), CuArray( bound_t_h )
+bound_3_l_d, bound_3_r_d = CuArray( bound_l_h ), CuArray( bound_r_h )
+bound_3_d_d, bound_3_u_d = CuArray( bound_d_h ), CuArray( bound_u_h )
+bound_3_b_d, bound_3_t_d = CuArray( bound_b_h ), CuArray( bound_t_h )
+bound_4_l_d, bound_4_r_d = CuArray( bound_l_h ), CuArray( bound_r_h )
+bound_4_d_d, bound_4_u_d = CuArray( bound_d_h ), CuArray( bound_u_h )
+bound_4_b_d, bound_4_t_d = CuArray( bound_b_h ), CuArray( bound_t_h )
+bound_5_l_d, bound_5_r_d = CuArray( bound_l_h ), CuArray( bound_r_h )
+bound_5_d_d, bound_5_u_d = CuArray( bound_d_h ), CuArray( bound_u_h )
+bound_5_b_d, bound_5_t_d = CuArray( bound_b_h ), CuArray( bound_t_h )
+
+# Initialize bounderies
+CUDA.launch( setBounderies, grid3D, block3D,
+            (cnsv1_d, cnsv2_d, cnsv3_d, cnsv4_d, cnsv5_d,
+            bound_1_l_d, bound_1_r_d, bound_1_d_d, bound_1_u_d, bound_1_b_d, bound_1_t_d,
+            bound_2_l_d, bound_2_r_d, bound_2_d_d, bound_2_u_d, bound_2_b_d, bound_2_t_d,
+            bound_3_l_d, bound_3_r_d, bound_3_d_d, bound_3_u_d, bound_3_b_d, bound_3_t_d,
+            bound_4_l_d, bound_4_r_d, bound_4_d_d, bound_4_u_d, bound_4_b_d, bound_4_t_d,
+            bound_5_l_d, bound_5_r_d, bound_5_d_d, bound_5_u_d, bound_5_b_d, bound_5_t_d  ) )
 
 
-CUDA.launch( write_bounderies, grid3D, block3D,
-        ( Int32(nWidth), Int32(nHeight), Int32(nDepth),
-          bound_l_d, bound_r_d, bound_d_d, bound_u_d, bound_b_d, bound_t_d))
-
-bound_l_h = to_host( bound_l_d )
-bound_r_h = to_host( bound_r_d )
-bound_d_h = to_host( bound_d_d )
-bound_u_h = to_host( bound_u_d )
-bound_b_h = to_host( bound_b_d )
-bound_t_h = to_host( bound_t_d )
-
+nIterPerStep, reminderSteps = divrem( nIterations, nPartialSteps )
+totalTime = [ 0.0, 0.0, 0.0 ]
+println( "\nnSnapshots: $nPartialSteps \nOutput: $(outDir*outFileName)\n" )
+println( "Starting $nIterations iterations...\n")
+writeSnapshot( 0, "rho", cnsv1_h, outFile, stride=1 )
+for i in 1:nPartialSteps
+  printProgress( i-1, nPartialSteps, sum(totalTime) )
+  totalTime[1] += @elapsed dynamics( nIterPerStep, cnsv1_d, cnsv1_h, transferEnd=true )
+  totalTime[2] += @elapsed writeSnapshot( i, "rho", cnsv1_h, outFile, stride=1 )
 #
-# nIterPerStep, reminderSteps = divrem( nIterations, nPartialSteps )
-# totalTime = [ 0.0, 0.0, 0.0 ]
-# println( "\nnSnapshots: $nPartialSteps \nOutput: $(outDir*outFileName)\n" )
-# println( "Starting $nIterations iterations...\n")
-# writeSnapshot( 0, "rho", cnsv1_h, outFile, stride=1 )
-# for i in 1:nPartialSteps
-#   printProgress( i-1, nPartialSteps, sum(totalTime) )
-#   totalTime[1] += @elapsed dynamics( nIterPerStep, cnsv1_d, cnsv1_h, transferEnd=true )
-#   totalTime[2] += @elapsed writeSnapshot( i, "rho", cnsv1_h, outFile, stride=1 )
-# #
-# end
-# printProgress( nPartialSteps, nPartialSteps, sum(totalTime) )
-# println( "\nTotal Time: $(sum(totalTime)) secs" )
-# println( "Compute Time: $(totalTime[1]) secs" )
-# println( "Write Time: $(totalTime[2]) secs" )
-# println( "Transfer Time: $(totalTime[3]) secs" )
+end
+printProgress( nPartialSteps, nPartialSteps, sum(totalTime) )
+println( "\nTotal Time: $(sum(totalTime)) secs" )
+println( "Compute Time: $(totalTime[1]) secs" )
+println( "Write Time: $(totalTime[2]) secs" )
+println( "Transfer Time: $(totalTime[3]) secs" )
 
 
 close( outFile )
