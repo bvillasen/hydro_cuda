@@ -84,8 +84,9 @@ getInterFlux_hll = CuFunction( cudaModule, "getInterFlux_hll")
 copyDtoD = CuFunction( cudaModule, "copyDtoD")
 addDtoD  = CuFunction( cudaModule, "addDtoD")
 setBounderies = CuFunction( cudaModule, "setBounderies" )
+reduction_min_kernel = CuFunction( cudaModule, "reduction_min_kernel" )
 ########################################################################
-const dt = 0.000995 /10
+# const dt = 0.000995 /10
 function timeStepHydro()
   for coord in [ 1, 2, 3]
     if coord == 1
@@ -111,8 +112,9 @@ function timeStepHydro()
       bound_1_r_temp, bound_2_r_temp, bound_3_r_temp, bound_4_r_temp, bound_5_r_temp,
       iFlx1_bound_temp, iFlx2_bound_temp, iFlx3_bound_temp, iFlx4_bound_temp, iFlx5_bound_temp,
       times_d ) )
-    # if coord == 1: dt = c0 * gpuarray.min( times_d ).get()
-
+    if coord == 1
+      global dt = c0*reduction_min( times_d, prePartialSum_d, partialSum_h, partialSum_d )
+    end
     CUDA.launch( getInterFlux_hll, grid3D, block3D,
     ( Int32( coord ),  Float64(dt), gamma, dx, dy, dz,
       cnsv1_adv_d, cnsv2_adv_d, cnsv3_adv_d, cnsv4_adv_d, cnsv5_adv_d,
@@ -207,6 +209,21 @@ bound_4_b_d, bound_4_t_d = CuArray( bound_b_h ), CuArray( bound_t_h )
 bound_5_l_d, bound_5_r_d = CuArray( bound_l_h ), CuArray( bound_r_h )
 bound_5_d_d, bound_5_u_d = CuArray( bound_d_h ), CuArray( bound_u_h )
 bound_5_b_d, bound_5_t_d = CuArray( bound_b_h ), CuArray( bound_t_h )
+#Arrays for reductions
+const blockSize_reduc = 256
+const gridSize_reduc = round( Int, nData / blockSize_reduc  / 2  )
+const last_gridSize = round( Int, gridSize_reduc / blockSize_reduc / 2 )
+prePartialSum_d = CuArray( zeros( Float64, (gridSize_reduc) ) )
+partialSum_h = zeros( Float64, (last_gridSize ) )
+partialSum_d = CuArray( partialSum_h )
+
+function reduction_min( data_d, prePartialSum_d, partialSum_h, partialSum_d )
+  CUDA.launch( reduction_min_kernel, gridSize_reduc , blockSize_reduc, ( data_d, prePartialSum_d ) )
+  CUDA.launch( reduction_min_kernel, last_gridSize, blockSize_reduc, ( prePartialSum_d, partialSum_d ) )
+  copy!( partialSum_h, partialSum_d )
+  return minimum( partialSum_h )
+end
+
 
 # Initialize bounderies
 CUDA.launch( setBounderies, grid3D, block3D,
@@ -237,39 +254,3 @@ println( "Transfer Time: $(totalTime[3]) secs" )
 
 
 close( outFile )
-
-
-#
-# function dynamics( nIter, data_d, data_h; transferEnd=false )
-#   for i in 1:nIter
-#     rk4_step()
-#   end
-#   if transferEnd
-#     copy!( data_h, data_d )
-#   end
-# end
-#
-#
-#
-
-
-# sumation_h = ones( Float64,  (nWidth, nHeight,nDepth) )
-# sumation_d = CuArray( sumation_h )
-# #Arrays for reductions
-# const blockSize_reduc = 256
-# const gridSize_reduc = round( Int, nData / blockSize_reduc  / 2  )
-# const last_gridSize = round( Int, gridSize_reduc / blockSize_reduc / 2 )
-# prePartialSum_d = CuArray( zeros( Float64, (gridSize_reduc) ) )
-# partialSum_h = zeros( Float64, (last_gridSize ) )
-# partialSum_d = CuArray( partialSum_h )
-#
-# function reduction( sumation_d, prePartialSum_d, partialSum_h, partialSum_d )
-#   CUDA.launch( reduction_kernel, gridSize_reduc , blockSize_reduc, ( sumation_d, prePartialSum_d ) )
-#   CUDA.launch( reduction_kernel, last_gridSize, blockSize_reduc, ( prePartialSum_d, partialSum_d ) )
-#   copy!( partialSum_h, partialSum_d )
-#   return sum( partialSum_h )
-# end
-# println( reduction( sumation_d, prePartialSum_d, partialSum_h, partialSum_d ) )
-# for i in 1:100
-#   totalTime += @elapsed reduction( sumation_d, prePartialSum_d, partialSum_h, partialSum_d )
-# end
