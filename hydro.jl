@@ -91,14 +91,17 @@ function timeStepHydro()
     if coord == 1
       bound_1_l_temp, bound_2_l_temp, bound_3_l_temp, bound_4_l_temp, bound_5_l_temp = bound_1_l_d, bound_2_l_d, bound_3_l_d, bound_4_l_d, bound_5_l_d
       bound_1_r_temp, bound_2_r_temp, bound_3_r_temp, bound_4_r_temp, bound_5_r_temp = bound_1_r_d, bound_2_r_d, bound_3_r_d, bound_4_r_d, bound_5_r_d
+      iFlx1_bound_temp, iFlx2_bound_temp, iFlx3_bound_temp, iFlx4_bound_temp, iFlx5_bound_temp = iFlx1_bnd_r_d, iFlx2_bnd_r_d, iFlx3_bnd_r_d, iFlx4_bnd_r_d, iFlx5_bnd_r_d
     end
     if coord == 2
       bound_1_l_temp, bound_2_l_temp, bound_3_l_temp, bound_4_l_temp, bound_5_l_temp = bound_1_d_d, bound_2_d_d, bound_3_d_d, bound_4_d_d, bound_5_d_d
       bound_1_r_temp, bound_2_r_temp, bound_3_r_temp, bound_4_r_temp, bound_5_r_temp = bound_1_u_d, bound_2_u_d, bound_3_u_d, bound_4_u_d, bound_5_u_d
+      iFlx1_bound_temp, iFlx2_bound_temp, iFlx3_bound_temp, iFlx4_bound_temp, iFlx5_bound_temp = iFlx1_bnd_u_d, iFlx2_bnd_u_d, iFlx3_bnd_u_d, iFlx4_bnd_u_d, iFlx5_bnd_u_d
     end
     if coord == 3
       bound_1_l_temp, bound_2_l_temp, bound_3_l_temp, bound_4_l_temp, bound_5_l_temp = bound_1_b_d, bound_2_b_d, bound_3_b_d, bound_4_b_d, bound_5_b_d
       bound_1_r_temp, bound_2_r_temp, bound_3_r_temp, bound_4_r_temp, bound_5_r_temp = bound_1_t_d, bound_2_t_d, bound_3_t_d, bound_4_t_d, bound_5_t_d
+      iFlx1_bound_temp, iFlx2_bound_temp, iFlx3_bound_temp, iFlx4_bound_temp, iFlx5_bound_temp = iFlx1_bnd_t_d, iFlx2_bnd_t_d, iFlx3_bnd_t_d, iFlx4_bnd_t_d, iFlx5_bnd_t_d
     end
     CUDA.launch( setInterFlux_hll, grid3D, block3D,
     ( Int32( coord ),  gamma , dx, dy, dz,
@@ -106,14 +109,15 @@ function timeStepHydro()
       iFlx1_d, iFlx2_d, iFlx3_d, iFlx4_d, iFlx5_d,
       bound_1_l_temp, bound_2_l_temp, bound_3_l_temp, bound_4_l_temp, bound_5_l_temp,
       bound_1_r_temp, bound_2_r_temp, bound_3_r_temp, bound_4_r_temp, bound_5_r_temp,
+      iFlx1_bound_temp, iFlx2_bound_temp, iFlx3_bound_temp, iFlx4_bound_temp, iFlx5_bound_temp,
       times_d ) )
     # if coord == 1: dt = c0 * gpuarray.min( times_d ).get()
 
     CUDA.launch( getInterFlux_hll, grid3D, block3D,
-    ( Int32( coord ),  Float64(dt), gamma ,
-      Int32(nWidth), Int32(nHeight), Int32(nDepth), dx, dy, dz,
+    ( Int32( coord ),  Float64(dt), gamma, dx, dy, dz,
       cnsv1_adv_d, cnsv2_adv_d, cnsv3_adv_d, cnsv4_adv_d, cnsv5_adv_d,
-      iFlx1_d, iFlx2_d, iFlx3_d, iFlx4_d, iFlx5_d ) )
+      iFlx1_d, iFlx2_d, iFlx3_d, iFlx4_d, iFlx5_d,
+      iFlx1_bound_temp, iFlx2_bound_temp, iFlx3_bound_temp, iFlx4_bound_temp, iFlx5_bound_temp ) )
   end
   CUDA.launch( addDtoD, grid3D, block3D,
               (cnsv1_d, cnsv2_d, cnsv3_d, cnsv4_d, cnsv5_d,
@@ -183,6 +187,11 @@ iFlx2_d = CuArray( zeros( Float64, (nWidth, nHeight,nDepth) ) )
 iFlx3_d = CuArray( zeros( Float64, (nWidth, nHeight,nDepth) ) )
 iFlx4_d = CuArray( zeros( Float64, (nWidth, nHeight,nDepth) ) )
 iFlx5_d = CuArray( zeros( Float64, (nWidth, nHeight,nDepth) ) )
+iFlx1_bnd_r_d, iFlx1_bnd_u_d, iFlx1_bnd_t_d = CuArray( bound_r_h ), CuArray( bound_u_h ), CuArray( bound_t_h )
+iFlx2_bnd_r_d, iFlx2_bnd_u_d, iFlx2_bnd_t_d = CuArray( bound_r_h ), CuArray( bound_u_h ), CuArray( bound_t_h )
+iFlx3_bnd_r_d, iFlx3_bnd_u_d, iFlx3_bnd_t_d = CuArray( bound_r_h ), CuArray( bound_u_h ), CuArray( bound_t_h )
+iFlx4_bnd_r_d, iFlx4_bnd_u_d, iFlx4_bnd_t_d = CuArray( bound_r_h ), CuArray( bound_u_h ), CuArray( bound_t_h )
+iFlx5_bnd_r_d, iFlx5_bnd_u_d, iFlx5_bnd_t_d = CuArray( bound_r_h ), CuArray( bound_u_h ), CuArray( bound_t_h )
 bound_1_l_d, bound_1_r_d = CuArray( bound_l_h ), CuArray( bound_r_h )
 bound_1_d_d, bound_1_u_d = CuArray( bound_d_h ), CuArray( bound_u_h )
 bound_1_b_d, bound_1_t_d = CuArray( bound_b_h ), CuArray( bound_t_h )
